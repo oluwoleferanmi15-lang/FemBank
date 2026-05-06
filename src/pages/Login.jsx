@@ -13,6 +13,15 @@ const Login = () => {
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotMsg, setForgotMsg] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
+  const [attempts, setAttempts] = useState(0);
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLocked, setIsLocked] = useState(false);
+
+  // Show password for 2 seconds then hide
+  const handleShowPassword = () => {
+    setShowPassword(true);
+    setTimeout(() => setShowPassword(false), 2000);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -23,7 +32,23 @@ const Login = () => {
       login(data);
       navigate('/dashboard');
     } catch (err) {
-      setError(err.response?.data?.message || 'Login failed');
+      const attemptsLeft = err.response?.data?.attemptsLeft;
+      const locked = err.response?.data?.isLocked;
+
+      if (locked) {
+        setIsLocked(true);
+        setError('Account locked due to too many failed attempts.');
+        setShowForgot(true);
+      } else {
+        const newAttempts = attempts + 1;
+        setAttempts(newAttempts);
+        setError(`Invalid credentials${attemptsLeft > 0 ? ` — ${attemptsLeft} attempt${attemptsLeft !== 1 ? 's' : ''} left` : ''}`);
+
+        // Show forgot password after 3 attempts
+        if (newAttempts >= 3) {
+          setShowForgot(true);
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -34,9 +59,9 @@ const Login = () => {
     setForgotMsg('');
     try {
       await forgotPassword({ email: forgotEmail });
-      setForgotMsg('New password sent to your email!');
+      setForgotMsg('✅ New password sent to your email!');
     } catch (err) {
-      setForgotMsg(err.response?.data?.message || 'Failed to reset password');
+      setForgotMsg('❌ ' + (err.response?.data?.message || 'Failed to reset password'));
     } finally {
       setForgotLoading(false);
     }
@@ -66,78 +91,101 @@ const Login = () => {
         </div>
 
         {/* Login Form */}
-        {!showForgot ? (
-          <div style={{ background: '#0D1F0D', border: '1px solid #00CC7A', padding: '32px' }}>
-            <p style={{ color: '#00FF9C', fontSize: '12px', letterSpacing: '2px', marginBottom: '24px' }}>
-              {'>'} ENTER_CREDENTIALS
-            </p>
+        <div style={{ background: '#0D1F0D', border: '1px solid #00CC7A', padding: '32px' }}>
+          <p style={{ color: '#00FF9C', fontSize: '12px', letterSpacing: '2px', marginBottom: '24px' }}>
+            {'>'} ENTER_CREDENTIALS
+          </p>
 
-            <form onSubmit={handleSubmit}>
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ color: '#00CC7A', fontSize: '11px', letterSpacing: '2px', display: 'block', marginBottom: '8px' }}>
-                  {'>'} EMAIL_ADDRESS
-                </label>
-                <input className="input-field" type="email" placeholder="user@fembank.com"
-                  value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
-              </div>
-
-              <div style={{ marginBottom: '8px' }}>
-                <label style={{ color: '#00CC7A', fontSize: '11px', letterSpacing: '2px', display: 'block', marginBottom: '8px' }}>
-                  {'>'} PASSWORD
-                </label>
-                <input className="input-field" type="password" placeholder="••••••••"
-                  value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
-              </div>
-
-              {/* Forgot password */}
-              <p style={{ textAlign: 'right', marginBottom: '24px' }}>
-                <span style={{ color: '#F5A623', fontSize: '10px', cursor: 'pointer', letterSpacing: '1px' }}
-                  onClick={() => setShowForgot(true)}>
-                  {'>'} FORGOT_PASSWORD?
-                </span>
-              </p>
-
-              {error && <p className="error-msg" style={{ marginBottom: '16px' }}>{'>'} ERROR :: {error}</p>}
-
-              <button className="btn-primary" type="submit" disabled={loading}>
-                {loading ? '> AUTHENTICATING...' : '> LOGIN_TO_ACCOUNT'}
-              </button>
-            </form>
-          </div>
-        ) : (
-          /* Forgot password form */
-          <div style={{ background: '#0D1F0D', border: '1px solid #00CC7A', padding: '32px' }}>
-            <p style={{ color: '#00FF9C', fontSize: '12px', letterSpacing: '2px', marginBottom: '24px' }}>
-              {'>'} RESET_PASSWORD
-            </p>
-
-            <div style={{ marginBottom: '24px' }}>
+          <form onSubmit={handleSubmit}>
+            <div style={{ marginBottom: '16px' }}>
               <label style={{ color: '#00CC7A', fontSize: '11px', letterSpacing: '2px', display: 'block', marginBottom: '8px' }}>
-                {'>'} YOUR_EMAIL_ADDRESS
+                {'>'} EMAIL_ADDRESS
               </label>
               <input className="input-field" type="email" placeholder="user@fembank.com"
-                value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)} />
+                value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
             </div>
 
-            {forgotMsg && (
-              <p style={{
-                fontSize: '12px', marginBottom: '16px',
-                color: forgotMsg.includes('sent') ? '#00FF9C' : '#FF4444'
+            <div style={{ marginBottom: '8px' }}>
+              <label style={{ color: '#00CC7A', fontSize: '11px', letterSpacing: '2px', display: 'block', marginBottom: '8px' }}>
+                {'>'} PASSWORD
+              </label>
+              <div style={{ position: 'relative' }}>
+                <input className="input-field" 
+                  type={showPassword ? 'text' : 'password'} 
+                  placeholder="••••••••"
+                  value={form.password} 
+                  onChange={(e) => setForm({ ...form, password: e.target.value })} 
+                  required 
+                  style={{ paddingRight: '48px' }}
+                />
+                <button type="button" onClick={handleShowPassword} style={{
+                  position: 'absolute', right: '12px', top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'transparent', border: 'none',
+                  cursor: 'pointer', fontSize: '18px'
+                }}>
+                  {showPassword ? '🔒' : '👁️'}
+                </button>
+              </div>
+            </div>
+
+            {/* Forgot password link — shows after 3 attempts or if locked */}
+            {(attempts >= 3 || isLocked) && (
+              <div style={{
+                background: '#1A0000', border: '1px solid #FF4444',
+                padding: '12px', marginBottom: '16px', marginTop: '8px'
               }}>
-                {'>'} {forgotMsg}
+                <p style={{ color: '#FF4444', fontSize: '11px', letterSpacing: '1px', marginBottom: '8px' }}>
+                  {'>'} {isLocked ? 'ACCOUNT_LOCKED' : 'TOO_MANY_ATTEMPTS'}
+                </p>
+                <p style={{ color: '#FF4444', fontSize: '10px', marginBottom: '12px' }}>
+                  Reset your password to continue
+                </p>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    style={{
+                      flex: 1, background: 'transparent',
+                      border: '1px solid #FF4444', color: '#FF4444',
+                      padding: '8px', fontFamily: 'Share Tech Mono, monospace',
+                      fontSize: '12px', outline: 'none'
+                    }}
+                    type="email" placeholder="your@email.com"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                  />
+                  <button type="button" onClick={handleForgotPassword}
+                    disabled={forgotLoading}
+                    style={{
+                      background: '#FF4444', border: 'none',
+                      color: '#000', padding: '8px 12px',
+                      fontFamily: 'Share Tech Mono, monospace',
+                      fontSize: '10px', cursor: 'pointer', whiteSpace: 'nowrap'
+                    }}>
+                    {forgotLoading ? 'SENDING...' : 'RESET'}
+                  </button>
+                </div>
+                {forgotMsg && (
+                  <p style={{
+                    fontSize: '10px', marginTop: '8px',
+                    color: forgotMsg.includes('✅') ? '#00FF9C' : '#FF4444'
+                  }}>
+                    {forgotMsg}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {error && (
+              <p className="error-msg" style={{ marginBottom: '16px', marginTop: '8px' }}>
+                {'>'} {error}
               </p>
             )}
 
-            <button className="btn-primary" onClick={handleForgotPassword}
-              disabled={forgotLoading} style={{ marginBottom: '12px' }}>
-              {forgotLoading ? '> SENDING...' : '> SEND_NEW_PASSWORD'}
+            <button className="btn-primary" type="submit" disabled={loading || isLocked}>
+              {loading ? '> AUTHENTICATING...' : '> LOGIN_TO_ACCOUNT'}
             </button>
-
-            <button className="btn-gold" onClick={() => setShowForgot(false)}>
-              {'<'} BACK_TO_LOGIN
-            </button>
-          </div>
-        )}
+          </form>
+        </div>
 
         <p style={{ textAlign: 'center', marginTop: '24px', color: '#444444', fontSize: '12px' }}>
           NO_ACCOUNT?{' '}
