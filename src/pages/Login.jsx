@@ -1,26 +1,47 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { loginCustomer, forgotPassword } from '../api/auth';
+import { loginCustomer, sendResetOTP, verifyResetOTP, resetPassword } from '../api/auth';
 import { useAuth } from '../context/AuthContext';
+
+const checkPassword = (pass) => ({
+  length: pass.length >= 8,
+  letter: /[a-zA-Z]/.test(pass),
+  number: /[0-9]/.test(pass),
+  special: /[!@#$%^&*]/.test(pass)
+});
 
 const Login = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
+
+  // Login state
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showForgot, setShowForgot] = useState(false);
-  const [forgotEmail, setForgotEmail] = useState('');
-  const [forgotMsg, setForgotMsg] = useState('');
-  const [forgotLoading, setForgotLoading] = useState(false);
   const [attempts, setAttempts] = useState(0);
-  const [showPassword, setShowPassword] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
-  // Show password for 2 seconds then hide
-  const handleShowPassword = () => {
-    setShowPassword(true);
-    setTimeout(() => setShowPassword(false), 2000);
+  // Reset password state
+  const [resetStep, setResetStep] = useState(0); // 0=login, 1=enter email, 2=enter otp, 3=new password
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetOtp, setResetOtp] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetMsg, setResetMsg] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordChecks, setPasswordChecks] = useState({
+    length: false, letter: false, number: false, special: false
+  });
+
+  const isPasswordValid = Object.values(passwordChecks).every(Boolean);
+  const isLoginPasswordReady = form.password.length >= 8;
+
+  const handleShowPassword = (setter) => {
+    setter(true);
+    setTimeout(() => setter(false), 1500);
   };
 
   const handleSubmit = async (e) => {
@@ -38,46 +59,104 @@ const Login = () => {
       if (locked) {
         setIsLocked(true);
         setError('Account locked due to too many failed attempts.');
-        setShowForgot(true);
+        setResetStep(1);
+        setResetEmail(form.email);
       } else {
         const newAttempts = attempts + 1;
         setAttempts(newAttempts);
-        setError(`Invalid credentials${attemptsLeft > 0 ? ` — ${attemptsLeft} attempt${attemptsLeft !== 1 ? 's' : ''} left` : ''}`);
-
-        // Show forgot password after 3 attempts
-        if (newAttempts >= 3) {
-          setShowForgot(true);
+        if (attemptsLeft !== undefined) {
+          setError(`Invalid credentials — ${attemptsLeft} attempt${attemptsLeft !== 1 ? 's' : ''} left`);
+        } else {
+          setError('Invalid credentials');
         }
+        if (newAttempts >= 3) setResetStep(1);
       }
     } finally {
       setLoading(false);
     }
   };
 
-  const handleForgotPassword = async () => {
-    setForgotLoading(true);
-    setForgotMsg('');
+  const handleSendResetOTP = async () => {
+    setResetLoading(true);
+    setResetMsg('');
     try {
-      await forgotPassword({ email: forgotEmail });
-      setForgotMsg('✅ New password sent to your email!');
+      await sendResetOTP({ email: resetEmail });
+      setResetMsg('');
+      setResetStep(2);
     } catch (err) {
-      setForgotMsg('❌ ' + (err.response?.data?.message || 'Failed to reset password'));
+      setResetMsg('❌ ' + (err.response?.data?.message || 'Failed to send OTP'));
     } finally {
-      setForgotLoading(false);
+      setResetLoading(false);
     }
   };
 
+  const handleVerifyResetOTP = async () => {
+    setResetLoading(true);
+    setResetMsg('');
+    try {
+      await verifyResetOTP({ email: resetEmail, otp: resetOtp });
+      setResetStep(3);
+    } catch (err) {
+      setResetMsg('❌ ' + (err.response?.data?.message || 'Invalid OTP'));
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (newPassword !== confirmPassword) {
+      setResetMsg('❌ Passwords do not match');
+      return;
+    }
+    if (!isPasswordValid) {
+      setResetMsg('❌ Password does not meet requirements');
+      return;
+    }
+    setResetLoading(true);
+    setResetMsg('');
+    try {
+      await resetPassword({ email: resetEmail, otp: resetOtp, newPassword, confirmPassword });
+      setResetMsg('✅ Password reset successfully!');
+      setTimeout(() => {
+        setResetStep(0);
+        setAttempts(0);
+        setIsLocked(false);
+        setError('');
+        setResetOtp('');
+        setNewPassword('');
+        setConfirmPassword('');
+      }, 2000);
+    } catch (err) {
+      setResetMsg('❌ ' + (err.response?.data?.message || 'Reset failed'));
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const containerStyle = {
+    minHeight: '100vh',
+    background: '#000000',
+    backgroundImage: 'radial-gradient(ellipse at center, #0D1F0D 0%, #000000 70%)',
+    display: 'flex', flexDirection: 'column',
+    alignItems: 'center', justifyContent: 'center', padding: '20px'
+  };
+
+  const cardStyle = {
+    background: '#0D1F0D',
+    border: '1px solid #00CC7A',
+    padding: '32px'
+  };
+
+  const labelStyle = {
+    color: '#00CC7A', fontSize: '11px',
+    letterSpacing: '2px', display: 'block', marginBottom: '8px'
+  };
+
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: '#000000',
-      backgroundImage: 'radial-gradient(ellipse at center, #0D1F0D 0%, #000000 70%)',
-      display: 'flex', flexDirection: 'column',
-      alignItems: 'center', justifyContent: 'center', padding: '20px'
-    }}>
+    <div style={containerStyle}>
       <div style={{ width: '100%', maxWidth: '400px' }}>
 
-        {/* Header */}
+        {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: '40px' }}>
           <div style={{
             border: '1px solid #00FF9C', padding: '6px 20px',
@@ -87,105 +166,247 @@ const Login = () => {
             <span style={{ fontFamily: 'Orbitron, monospace', fontSize: '24px', fontWeight: '900', color: '#00FF9C' }}>FEM</span>
             <span style={{ fontFamily: 'Orbitron, monospace', fontSize: '24px', color: '#F5A623' }}>BANK</span>
           </div>
-          <p style={{ color: '#00CC7A', fontSize: '11px', letterSpacing: '3px' }}>{'>'} AUTHENTICATE_USER</p>
+          <p style={{ color: '#00CC7A', fontSize: '11px', letterSpacing: '3px' }}>
+            {resetStep === 0 ? '> AUTHENTICATE_USER' : '> RESET_PASSWORD'}
+          </p>
         </div>
 
-        {/* Login Form */}
-        <div style={{ background: '#0D1F0D', border: '1px solid #00CC7A', padding: '32px' }}>
-          <p style={{ color: '#00FF9C', fontSize: '12px', letterSpacing: '2px', marginBottom: '24px' }}>
-            {'>'} ENTER_CREDENTIALS
-          </p>
+        {/* Step 0 — Login */}
+        {resetStep === 0 && (
+          <div style={cardStyle}>
+            <p style={{ color: '#00FF9C', fontSize: '12px', letterSpacing: '2px', marginBottom: '24px' }}>
+              {'>'} ENTER_CREDENTIALS
+            </p>
 
-          <form onSubmit={handleSubmit}>
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ color: '#00CC7A', fontSize: '11px', letterSpacing: '2px', display: 'block', marginBottom: '8px' }}>
-                {'>'} EMAIL_ADDRESS
-              </label>
-              <input className="input-field" type="email" placeholder="user@fembank.com"
-                value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
-            </div>
-
-            <div style={{ marginBottom: '8px' }}>
-              <label style={{ color: '#00CC7A', fontSize: '11px', letterSpacing: '2px', display: 'block', marginBottom: '8px' }}>
-                {'>'} PASSWORD
-              </label>
-              <div style={{ position: 'relative' }}>
-                <input className="input-field" 
-                  type={showPassword ? 'text' : 'password'} 
-                  placeholder="••••••••"
-                  value={form.password} 
-                  onChange={(e) => setForm({ ...form, password: e.target.value })} 
-                  required 
-                  style={{ paddingRight: '48px' }}
-                />
-                <button type="button" onClick={handleShowPassword} style={{
-                  position: 'absolute', right: '12px', top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'transparent', border: 'none',
-                  cursor: 'pointer', fontSize: '18px'
-                }}>
-                  {showPassword ? '🔒' : '👁️'}
-                </button>
+            <form onSubmit={handleSubmit}>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={labelStyle}>{'>'} EMAIL_ADDRESS</label>
+                <input className="input-field" type="email" placeholder="user@fembank.com"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })} required />
               </div>
-            </div>
 
-            {/* Forgot password link — shows after 3 attempts or if locked */}
-            {(attempts >= 3 || isLocked) && (
-              <div style={{
-                background: '#1A0000', border: '1px solid #FF4444',
-                padding: '12px', marginBottom: '16px', marginTop: '8px'
-              }}>
-                <p style={{ color: '#FF4444', fontSize: '11px', letterSpacing: '1px', marginBottom: '8px' }}>
-                  {'>'} {isLocked ? 'ACCOUNT_LOCKED' : 'TOO_MANY_ATTEMPTS'}
-                </p>
-                <p style={{ color: '#FF4444', fontSize: '10px', marginBottom: '12px' }}>
-                  Reset your password to continue
-                </p>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <input
+              <div style={{ marginBottom: '24px' }}>
+                <label style={labelStyle}>{'>'} PASSWORD</label>
+                <div style={{ position: 'relative' }}>
+                  <input className="input-field"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="••••••••"
+                    value={form.password}
+                    onChange={(e) => setForm({ ...form, password: e.target.value })}
+                    required
+                    style={{ paddingRight: '48px' }} />
+                  <button type="button"
+                    onMouseDown={() => handleShowPassword(setShowPassword)}
                     style={{
-                      flex: 1, background: 'transparent',
-                      border: '1px solid #FF4444', color: '#FF4444',
-                      padding: '8px', fontFamily: 'Share Tech Mono, monospace',
-                      fontSize: '12px', outline: 'none'
-                    }}
-                    type="email" placeholder="your@email.com"
-                    value={forgotEmail}
-                    onChange={(e) => setForgotEmail(e.target.value)}
-                  />
-                  <button type="button" onClick={handleForgotPassword}
-                    disabled={forgotLoading}
-                    style={{
-                      background: '#FF4444', border: 'none',
-                      color: '#000', padding: '8px 12px',
-                      fontFamily: 'Share Tech Mono, monospace',
-                      fontSize: '10px', cursor: 'pointer', whiteSpace: 'nowrap'
+                      position: 'absolute', right: '12px', top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'transparent', border: 'none',
+                      cursor: 'pointer', fontSize: '16px', color: '#00CC7A'
                     }}>
-                    {forgotLoading ? 'SENDING...' : 'RESET'}
+                    {showPassword ? '🔒' : '👁'}
                   </button>
                 </div>
-                {forgotMsg && (
-                  <p style={{
-                    fontSize: '10px', marginTop: '8px',
-                    color: forgotMsg.includes('✅') ? '#00FF9C' : '#FF4444'
-                  }}>
-                    {forgotMsg}
+                {form.password.length > 0 && form.password.length < 8 && (
+                  <p style={{ color: '#FF4444', fontSize: '10px', marginTop: '4px' }}>
+                    ❌ Password must be at least 8 characters
                   </p>
                 )}
               </div>
+
+              {error && (
+                <p style={{ color: '#FF4444', fontSize: '11px', marginBottom: '16px', letterSpacing: '1px' }}>
+                  {'>'} {error}
+                </p>
+              )}
+
+              {attempts >= 3 && (
+                <div style={{ marginBottom: '16px' }}>
+                  <button type="button" className="btn-gold"
+                    onClick={() => setResetStep(1)}>
+                    {'>'} RESET_PASSWORD
+                  </button>
+                </div>
+              )}
+
+              <button className="btn-primary" type="submit"
+                disabled={loading || !isLoginPasswordReady}>
+                {loading ? '> AUTHENTICATING...' : '> LOGIN_TO_ACCOUNT'}
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* Step 1 — Enter email for reset */}
+        {resetStep === 1 && (
+          <div style={cardStyle}>
+            <p style={{ color: '#00FF9C', fontSize: '12px', letterSpacing: '2px', marginBottom: '8px' }}>
+              {'>'} RESET_PASSWORD
+            </p>
+            <p style={{ color: '#444444', fontSize: '11px', marginBottom: '24px' }}>
+              Enter your email to receive a reset OTP
+            </p>
+
+            <div style={{ marginBottom: '24px' }}>
+              <label style={labelStyle}>{'>'} EMAIL_ADDRESS</label>
+              <input className="input-field" type="email" placeholder="user@fembank.com"
+                value={resetEmail}
+                onChange={(e) => setResetEmail(e.target.value)} />
+            </div>
+
+            {resetMsg && (
+              <p style={{ color: '#FF4444', fontSize: '11px', marginBottom: '16px' }}>{resetMsg}</p>
             )}
 
-            {error && (
-              <p className="error-msg" style={{ marginBottom: '16px', marginTop: '8px' }}>
-                {'>'} {error}
+            <button className="btn-primary" onClick={handleSendResetOTP}
+              disabled={resetLoading} style={{ marginBottom: '12px' }}>
+              {resetLoading ? '> SENDING...' : '> SEND_RESET_OTP'}
+            </button>
+
+            <button className="btn-gold" onClick={() => { setResetStep(0); setError(''); setAttempts(0); }}>
+              {'<'} BACK_TO_LOGIN
+            </button>
+          </div>
+        )}
+
+        {/* Step 2 — Enter OTP */}
+        {resetStep === 2 && (
+          <div style={cardStyle}>
+            <p style={{ color: '#00FF9C', fontSize: '12px', letterSpacing: '2px', marginBottom: '8px' }}>
+              {'>'} ENTER_OTP
+            </p>
+            <div style={{ background: '#000', border: '1px solid #333', padding: '12px', marginBottom: '20px' }}>
+              <p style={{ color: '#333', fontSize: '10px' }}>
+                OTP sent to :: <span style={{ color: '#00FF9C' }}>{resetEmail}</span>
+              </p>
+            </div>
+
+            <div style={{ marginBottom: '24px' }}>
+              <label style={labelStyle}>{'>'} ENTER_OTP</label>
+              <input className="input-field" type="text" placeholder="000000"
+                maxLength={6}
+                value={resetOtp}
+                onChange={(e) => setResetOtp(e.target.value.replace(/\D/g, ''))}
+                style={{ fontSize: '24px', letterSpacing: '8px', textAlign: 'center' }} />
+              <p style={{ color: '#444', fontSize: '10px', marginTop: '4px', textAlign: 'right' }}>
+                {resetOtp.length}/6
+              </p>
+            </div>
+
+            {resetMsg && (
+              <p style={{ color: '#FF4444', fontSize: '11px', marginBottom: '16px' }}>{resetMsg}</p>
+            )}
+
+            <button className="btn-primary" onClick={handleVerifyResetOTP}
+              disabled={resetLoading || resetOtp.length !== 6}
+              style={{ marginBottom: '12px' }}>
+              {resetLoading ? '> VERIFYING...' : '> VERIFY_OTP'}
+            </button>
+
+            <button className="btn-gold" onClick={() => setResetStep(1)}>
+              {'<'} BACK
+            </button>
+          </div>
+        )}
+
+        {/* Step 3 — New password */}
+        {resetStep === 3 && (
+          <div style={cardStyle}>
+            <p style={{ color: '#00FF9C', fontSize: '12px', letterSpacing: '2px', marginBottom: '24px' }}>
+              {'>'} SET_NEW_PASSWORD
+            </p>
+
+            {/* New password */}
+            <div style={{ marginBottom: '16px' }}>
+              <label style={labelStyle}>{'>'} NEW_PASSWORD</label>
+              <div style={{ position: 'relative' }}>
+                <input className="input-field"
+                  type={showNewPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  value={newPassword}
+                  onChange={(e) => {
+                    setNewPassword(e.target.value);
+                    setPasswordChecks(checkPassword(e.target.value));
+                  }}
+                  style={{ paddingRight: '48px' }} />
+                <button type="button"
+                  onMouseDown={() => handleShowPassword(setShowNewPassword)}
+                  style={{
+                    position: 'absolute', right: '12px', top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'transparent', border: 'none',
+                    cursor: 'pointer', fontSize: '16px', color: '#00CC7A'
+                  }}>
+                  {showNewPassword ? '🔒' : '👁'}
+                </button>
+              </div>
+
+              {newPassword.length > 0 && (
+                <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {[
+                    { key: 'length', label: 'At least 8 characters' },
+                    { key: 'letter', label: 'Contains a letter' },
+                    { key: 'number', label: 'Contains a number' },
+                    { key: 'special', label: 'Contains special character (!@#$%^&*)' },
+                  ].map(check => (
+                    <p key={check.key} style={{
+                      fontSize: '10px',
+                      color: passwordChecks[check.key] ? '#00FF9C' : '#FF4444'
+                    }}>
+                      {passwordChecks[check.key] ? '✅' : '❌'} {check.label}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Confirm password */}
+            <div style={{ marginBottom: '24px' }}>
+              <label style={labelStyle}>{'>'} CONFIRM_PASSWORD</label>
+              <div style={{ position: 'relative' }}>
+                <input className="input-field"
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  style={{ paddingRight: '48px' }} />
+                <button type="button"
+                  onMouseDown={() => handleShowPassword(setShowConfirmPassword)}
+                  style={{
+                    position: 'absolute', right: '12px', top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'transparent', border: 'none',
+                    cursor: 'pointer', fontSize: '16px', color: '#00CC7A'
+                  }}>
+                  {showConfirmPassword ? '🔒' : '👁'}
+                </button>
+              </div>
+
+              {confirmPassword.length > 0 && (
+                <p style={{
+                  fontSize: '10px', marginTop: '4px',
+                  color: newPassword === confirmPassword ? '#00FF9C' : '#FF4444'
+                }}>
+                  {newPassword === confirmPassword ? '✅ Passwords match' : '❌ Passwords do not match'}
+                </p>
+              )}
+            </div>
+
+            {resetMsg && (
+              <p style={{
+                fontSize: '11px', marginBottom: '16px',
+                color: resetMsg.includes('✅') ? '#00FF9C' : '#FF4444'
+              }}>
+                {resetMsg}
               </p>
             )}
 
-            <button className="btn-primary" type="submit" disabled={loading || isLocked}>
-              {loading ? '> AUTHENTICATING...' : '> LOGIN_TO_ACCOUNT'}
+            <button className="btn-primary" onClick={handleResetPassword}
+              disabled={resetLoading || !isPasswordValid || newPassword !== confirmPassword}>
+              {resetLoading ? '> RESETTING...' : '> RESET_PASSWORD'}
             </button>
-          </form>
-        </div>
+          </div>
+        )}
 
         <p style={{ textAlign: 'center', marginTop: '24px', color: '#444444', fontSize: '12px' }}>
           NO_ACCOUNT?{' '}
@@ -193,7 +414,6 @@ const Login = () => {
             {'>'} CREATE_ONE
           </span>
         </p>
-
         <p style={{ textAlign: 'center', marginTop: '12px', color: '#444444', fontSize: '11px', cursor: 'pointer' }}
           onClick={() => navigate('/')}>
           {'<'} BACK_TO_HOME
