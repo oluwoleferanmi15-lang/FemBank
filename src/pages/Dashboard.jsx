@@ -78,7 +78,7 @@ setBalance(data.balance);
             background: 'transparent', border: 'none', color: '#00CC7A',
             cursor: 'pointer', fontSize: '18px'
           }}>
-            {showBalance ? '👁' : '🔒'}
+            {showBalance ? 'HIDE' : 'SHOW'}
           </button>
         </div>
         <p style={{
