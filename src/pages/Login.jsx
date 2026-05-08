@@ -204,7 +204,7 @@ const Login = () => {
                       background: 'transparent', border: 'none',
                       cursor: 'pointer', fontSize: '16px', color: '#00CC7A'
                     }}>
-                    {showPassword ? '🔒' : '👁'}
+                    {showPassword ? '●●●' : '●○○'}
                   </button>
                 </div>
                 {form.password.length > 0 && form.password.length < 8 && (
@@ -337,7 +337,7 @@ const Login = () => {
                     background: 'transparent', border: 'none',
                     cursor: 'pointer', fontSize: '16px', color: '#00CC7A'
                   }}>
-                  {showNewPassword ? '🔒' : '👁'}
+                  {showNewPassword ? 'HIDE' : 'SHOW'}
                 </button>
               </div>
 
@@ -378,7 +378,7 @@ const Login = () => {
                     background: 'transparent', border: 'none',
                     cursor: 'pointer', fontSize: '16px', color: '#00CC7A'
                   }}>
-                  {showConfirmPassword ? '🔒' : '👁'}
+                  {showConfirmPassword ? 'HIDE' : 'SHOW'}
                 </button>
               </div>
 
