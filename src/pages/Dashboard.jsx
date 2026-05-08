@@ -14,7 +14,8 @@ const Dashboard = () => {
     const fetchBalance = async () => {
       try {
         const data = await getBalance();
-        setBalance(data.balance);
+console.log('Balance data:', data);
+setBalance(data.balance);
       } catch (err) {
         console.error(err);
       } finally {
