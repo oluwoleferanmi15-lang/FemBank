@@ -3,6 +3,20 @@ import { useNavigate } from 'react-router-dom';
 import { registerCustomer, sendOTP, verifyOTP } from '../api/auth';
 import { useAuth } from '../context/AuthContext';
 
+const EyeSVG = ({ open }) => open ? (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+    stroke="#00CC7A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+    <line x1="1" y1="1" x2="23" y2="23"/>
+  </svg>
+) : (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+    stroke="#00CC7A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+    <circle cx="12" cy="12" r="3"/>
+  </svg>
+);
+
 const checkPassword = (pass) => ({
   length: pass.length >= 8,
   letter: /[a-zA-Z]/.test(pass),
@@ -38,8 +52,6 @@ const Register = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [ageError, setAgeError] = useState('');
-
-  // OTP resend state
   const [otpResendCount, setOtpResendCount] = useState(0);
   const [otpCountdown, setOtpCountdown] = useState(0);
   const [isBlocked, setIsBlocked] = useState(false);
@@ -49,7 +61,7 @@ const Register = () => {
   const isKycValid = form.kycID.length === 11;
   const isPhoneValid = form.phone.length === 10;
 
-  const handleShowPassword = (setter) => {
+  const handleShowFor2Sec = (setter) => {
     setter(true);
     setTimeout(() => setter(false), 1500);
   };
@@ -98,7 +110,7 @@ const Register = () => {
       const blocked = err.response?.data?.isBlocked;
       if (blocked) {
         setIsBlocked(true);
-        setError(err.response?.data?.message || 'Too many requests');
+        setError(err.response?.data?.message || 'Too many requests. Try again later.');
       } else {
         setError(err.response?.data?.message || 'Failed to send OTP');
       }
@@ -130,10 +142,7 @@ const Register = () => {
     setLoading(true);
     setError('');
     try {
-      const data = await registerCustomer({
-        ...form,
-        phone: form.phone
-      });
+      const data = await registerCustomer(form);
       login(data);
       navigate('/dashboard');
     } catch (err) {
@@ -148,12 +157,21 @@ const Register = () => {
     background: '#000000',
     backgroundImage: 'radial-gradient(ellipse at center, #0D1F0D 0%, #000000 70%)',
     display: 'flex', flexDirection: 'column',
-    alignItems: 'center', justifyContent: 'center', padding: '20px'
+    alignItems: 'center', justifyContent: 'center',
+    padding: '20px', fontFamily: 'Share Tech Mono, monospace'
   };
 
   const labelStyle = {
     color: '#00CC7A', fontSize: '11px',
     letterSpacing: '2px', display: 'block', marginBottom: '8px'
+  };
+
+  const eyeBtnStyle = {
+    position: 'absolute', right: '12px', top: '50%',
+    transform: 'translateY(-50%)',
+    background: 'transparent', border: 'none',
+    cursor: 'pointer', padding: '4px',
+    display: 'flex', alignItems: 'center'
   };
 
   return (
@@ -170,16 +188,18 @@ const Register = () => {
             <span style={{ fontFamily: 'Orbitron, monospace', fontSize: '24px', fontWeight: '900', color: '#00FF9C' }}>FEM</span>
             <span style={{ fontFamily: 'Orbitron, monospace', fontSize: '24px', color: '#F5A623' }}>BANK</span>
           </div>
-          <p style={{ color: '#00CC7A', fontSize: '11px', letterSpacing: '3px' }}>{'>'} NEW_ACCOUNT_REGISTRATION</p>
+          <p style={{ color: '#00CC7A', fontSize: '11px', letterSpacing: '3px' }}>
+            {'>'} NEW_ACCOUNT_REGISTRATION
+          </p>
         </div>
 
-        {/* Progress */}
+        {/* Progress bar */}
         <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
           {[1, 2, 3, 4].map(s => (
             <div key={s} style={{
               flex: 1, height: '2px',
-              background: step >= s ? '#00FF9C' : '#333333',
-              boxShadow: step >= s ? '0 0 8px #00FF9C' : 'none',
+              background: step >= s ? '#00FF9C' : '#1A1A1A',
+              boxShadow: step >= s ? '0 0 6px #00FF9C' : 'none',
               transition: 'all 0.3s'
             }} />
           ))}
@@ -187,7 +207,7 @@ const Register = () => {
 
         <div style={{ background: '#0D1F0D', border: '1px solid #00CC7A', padding: '32px' }}>
 
-          {/* Step 1 — Basic Info + Send OTP */}
+          {/* Step 1 — Basic Info */}
           {step === 1 && (
             <>
               <p style={{ color: '#00FF9C', fontSize: '12px', letterSpacing: '2px', marginBottom: '24px' }}>
@@ -201,80 +221,99 @@ const Register = () => {
               ].map(field => (
                 <div key={field.key} style={{ marginBottom: '16px' }}>
                   <label style={labelStyle}>{'>'} {field.label}</label>
-                  <input className="input-field" type={field.type} placeholder={field.placeholder}
+                  <input className="input-field" type={field.type}
+                    placeholder={field.placeholder}
                     value={form[field.key]}
                     onChange={(e) => setForm({ ...form, [field.key]: e.target.value })} />
                 </div>
               ))}
 
-              {error && <p style={{ color: '#FF4444', fontSize: '11px', marginBottom: '16px' }}>{'>'} ERROR :: {error}</p>}
+              {error && (
+                <p style={{ color: '#FF4444', fontSize: '11px', marginBottom: '16px' }}>
+                  {'>'} {error}
+                </p>
+              )}
 
-              <button className="btn-primary" onClick={handleSendOTP} disabled={loading || isBlocked}>
+              <button className="btn-primary" onClick={handleSendOTP}
+                disabled={loading || isBlocked}>
                 {loading ? '> SENDING_OTP...' : '> SEND_OTP_TO_EMAIL'}
               </button>
             </>
           )}
 
-          {/* Step 2 — OTP Verification */}
+          {/* Step 2 — OTP */}
           {step === 2 && (
             <>
               <p style={{ color: '#00FF9C', fontSize: '12px', letterSpacing: '2px', marginBottom: '24px' }}>
                 {'>'} STEP_2 :: EMAIL_VERIFICATION
               </p>
 
-              <div style={{ background: '#000000', border: '1px solid #333', padding: '12px', marginBottom: '20px' }}>
-                <p style={{ color: '#333333', fontSize: '10px' }}>
+              <div style={{
+                background: '#000', border: '1px solid #1A3A1A',
+                padding: '12px', marginBottom: '20px'
+              }}>
+                <p style={{ color: '#333', fontSize: '10px', margin: 0 }}>
                   OTP sent to :: <span style={{ color: '#00FF9C' }}>{form.email}</span>
                 </p>
               </div>
 
               <div style={{ marginBottom: '24px' }}>
                 <label style={labelStyle}>{'>'} ENTER_OTP</label>
-                <input className="input-field" type="text" placeholder="000000"
-                  maxLength={6}
+                <input className="input-field" type="text"
+                  placeholder="000000" maxLength={6}
                   value={otp}
                   onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
                   style={{ fontSize: '24px', letterSpacing: '8px', textAlign: 'center' }} />
-                <p style={{ color: '#444', fontSize: '10px', marginTop: '4px', textAlign: 'right' }}>
+                <p style={{
+                  fontSize: '10px', marginTop: '4px', textAlign: 'right',
+                  color: otp.length === 6 ? '#00FF9C' : '#444'
+                }}>
                   {otp.length}/6
                 </p>
               </div>
 
-              {error && <p style={{ color: '#FF4444', fontSize: '11px', marginBottom: '16px' }}>{'>'} ERROR :: {error}</p>}
+              {error && (
+                <p style={{ color: '#FF4444', fontSize: '11px', marginBottom: '16px' }}>
+                  {'>'} {error}
+                </p>
+              )}
 
               <button className="btn-primary" onClick={handleVerifyOTP}
                 disabled={loading || otp.length !== 6}
-                style={{ marginBottom: '12px' }}>
+                style={{ marginBottom: '12px', opacity: otp.length !== 6 ? 0.4 : 1 }}>
                 {loading ? '> VERIFYING...' : '> VERIFY_OTP'}
               </button>
 
               {/* Resend OTP */}
-              <div style={{ textAlign: 'center', marginTop: '12px' }}>
-                {otpCountdown > 0 ? (
-                  <p style={{ color: '#444444', fontSize: '10px' }}>
-                    Resend OTP in <span style={{ color: '#00FF9C' }}>{otpCountdown}s</span>
-                    {' '}({3 - otpResendCount} attempts left)
+              <div style={{ textAlign: 'center', marginBottom: '12px' }}>
+                {isBlocked ? (
+                  <p style={{ color: '#FF4444', fontSize: '10px' }}>
+                    Max OTP attempts reached. Try again in 24 hours.
+                  </p>
+                ) : otpCountdown > 0 ? (
+                  <p style={{ color: '#444', fontSize: '10px' }}>
+                    Resend in <span style={{ color: '#00FF9C' }}>{otpCountdown}s</span>
+                    {' '}· {3 - otpResendCount} attempt{3 - otpResendCount !== 1 ? 's' : ''} left
                   </p>
                 ) : otpResendCount < 3 ? (
                   <span style={{ color: '#F5A623', fontSize: '10px', cursor: 'pointer' }}
                     onClick={handleSendOTP}>
-                    {'>'} Resend OTP ({3 - otpResendCount} left)
+                    {'>'} Resend OTP · {3 - otpResendCount} left
                   </span>
                 ) : (
                   <p style={{ color: '#FF4444', fontSize: '10px' }}>
-                    Maximum OTP attempts reached. Try again in 24 hours.
+                    Max OTP attempts reached. Try again in 24 hours.
                   </p>
                 )}
               </div>
 
-              <button className="btn-gold" onClick={() => { setStep(1); setOtp(''); setError(''); }}
-                style={{ marginTop: '12px' }}>
+              <button className="btn-gold" onClick={() => { setStep(1); setOtp(''); setError(''); }}>
                 {'<'} BACK
               </button>
             </>
           )}
 
-          {/* Step 3 — Personal Details + Password */}
+          {/* Step 3 — Personal Details */}
           {step === 3 && (
             <>
               <p style={{ color: '#00FF9C', fontSize: '12px', letterSpacing: '2px', marginBottom: '24px' }}>
@@ -286,16 +325,23 @@ const Register = () => {
                 <label style={labelStyle}>{'>'} PHONE_NUMBER</label>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <div style={{
-                    background: '#000000', border: '1px solid #00CC7A',
-                    padding: '12px', color: '#00FF9C', fontSize: '14px', whiteSpace: 'nowrap'
-                  }}>+234</div>
+                    background: '#000', border: '1px solid #00CC7A',
+                    padding: '12px', color: '#00FF9C',
+                    fontSize: '14px', whiteSpace: 'nowrap'
+                  }}>
+                    +234
+                  </div>
                   <input className="input-field" type="tel"
                     placeholder="8012345678" maxLength={10}
                     value={form.phone}
                     onChange={(e) => setForm({ ...form, phone: e.target.value.replace(/\D/g, '') })} />
                 </div>
-                <p style={{ fontSize: '10px', marginTop: '4px', textAlign: 'right', color: isPhoneValid ? '#00FF9C' : '#FF4444' }}>
-                  {form.phone.length}/10 {isPhoneValid ? '✅' : `— need ${10 - form.phone.length} more`}
+                <p style={{
+                  fontSize: '10px', marginTop: '4px', textAlign: 'right',
+                  color: isPhoneValid ? '#00FF9C' : '#FF4444'
+                }}>
+                  {form.phone.length}/10{' '}
+                  {isPhoneValid ? '✓ Valid' : `— need ${10 - form.phone.length} more`}
                 </p>
               </div>
 
@@ -308,19 +354,13 @@ const Register = () => {
                     placeholder="••••••••"
                     value={form.password}
                     onChange={(e) => handlePasswordChange(e.target.value)}
-                    style={{ paddingRight: '48px' }} />
+                    style={{ paddingRight: '44px' }} />
                   <button type="button"
-                    onMouseDown={() => handleShowPassword(setShowPassword)}
-                    style={{
-                      position: 'absolute', right: '12px', top: '50%',
-                      transform: 'translateY(-50%)',
-                      background: 'transparent', border: 'none',
-                      cursor: 'pointer', fontSize: '16px', color: '#00CC7A'
-                    }}>
-                    {showPassword ? '🔒' : '👁'}
+                    onMouseDown={() => handleShowFor2Sec(setShowPassword)}
+                    style={eyeBtnStyle}>
+                    <EyeSVG open={showPassword} />
                   </button>
                 </div>
-
                 {form.password.length > 0 && (
                   <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     {[
@@ -329,8 +369,11 @@ const Register = () => {
                       { key: 'number', label: 'Contains a number' },
                       { key: 'special', label: 'Contains special character (!@#$%^&*)' },
                     ].map(check => (
-                      <p key={check.key} style={{ fontSize: '10px', color: passwordChecks[check.key] ? '#00FF9C' : '#FF4444' }}>
-                        {passwordChecks[check.key] ? '✅' : '❌'} {check.label}
+                      <p key={check.key} style={{
+                        fontSize: '10px', margin: 0,
+                        color: passwordChecks[check.key] ? '#00FF9C' : '#FF4444'
+                      }}>
+                        {passwordChecks[check.key] ? '✓' : '✗'} {check.label}
                       </p>
                     ))}
                   </div>
@@ -346,30 +389,34 @@ const Register = () => {
                     placeholder="••••••••"
                     value={form.confirmPassword}
                     onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
-                    style={{ paddingRight: '48px' }} />
+                    style={{ paddingRight: '44px' }} />
                   <button type="button"
-                    onMouseDown={() => handleShowPassword(setShowConfirmPassword)}
-                    style={{
-                      position: 'absolute', right: '12px', top: '50%',
-                      transform: 'translateY(-50%)',
-                      background: 'transparent', border: 'none',
-                      cursor: 'pointer', fontSize: '16px', color: '#00CC7A'
-                    }}>
-                    {showConfirmPassword ? '🔒' : '👁'}
+                    onMouseDown={() => handleShowFor2Sec(setShowConfirmPassword)}
+                    style={eyeBtnStyle}>
+                    <EyeSVG open={showConfirmPassword} />
                   </button>
                 </div>
-
                 {form.confirmPassword.length > 0 && (
-                  <p style={{ fontSize: '10px', marginTop: '4px', color: passwordsMatch ? '#00FF9C' : '#FF4444' }}>
-                    {passwordsMatch ? '✅ Passwords match' : '❌ Passwords do not match'}
+                  <p style={{
+                    fontSize: '10px', marginTop: '4px',
+                    color: passwordsMatch ? '#00FF9C' : '#FF4444'
+                  }}>
+                    {passwordsMatch ? '✓ Passwords match' : '✗ Passwords do not match'}
                   </p>
                 )}
               </div>
 
-              {error && <p style={{ color: '#FF4444', fontSize: '11px', marginBottom: '16px' }}>{'>'} ERROR :: {error}</p>}
+              {error && (
+                <p style={{ color: '#FF4444', fontSize: '11px', marginBottom: '16px' }}>
+                  {'>'} {error}
+                </p>
+              )}
 
               <button className="btn-primary" onClick={() => {
-                if (!form.phone || !form.password || !form.confirmPassword) { setError('All fields required'); return; }
+                if (!form.phone || !form.password || !form.confirmPassword) {
+                  setError('All fields are required');
+                  return;
+                }
                 if (!isPasswordValid) { setError('Password does not meet requirements'); return; }
                 if (!passwordsMatch) { setError('Passwords do not match'); return; }
                 if (!isPhoneValid) { setError('Phone number must be 10 digits'); return; }
@@ -396,24 +443,29 @@ const Register = () => {
                 <label style={labelStyle}>{'>'} KYC_TYPE</label>
                 <select className="input-field" value={form.kycType}
                   onChange={(e) => setForm({ ...form, kycType: e.target.value, kycID: '' })}
-                  style={{ background: '#000000' }}>
+                  style={{ background: '#000' }}>
                   <option value="bvn">BVN</option>
                   <option value="nin">NIN</option>
                 </select>
               </div>
 
               <div style={{ marginBottom: '16px' }}>
-                <label style={labelStyle}>{'>'} {form.kycType.toUpperCase()}_NUMBER (exactly 11 digits)</label>
+                <label style={labelStyle}>
+                  {'>'} {form.kycType.toUpperCase()}_NUMBER (exactly 11 digits)
+                </label>
                 <input className="input-field" type="text"
                   placeholder={`Enter your 11-digit ${form.kycType.toUpperCase()}`}
                   maxLength={11}
                   value={form.kycID}
                   onChange={(e) => setForm({ ...form, kycID: e.target.value.replace(/\D/g, '') })} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
-                  <p style={{ fontSize: '10px', color: isKycValid ? '#00FF9C' : '#FF4444' }}>
-                    {isKycValid ? '✅ Valid' : `❌ Need ${11 - form.kycID.length} more digit${11 - form.kycID.length !== 1 ? 's' : ''}`}
+                  <p style={{ fontSize: '10px', margin: 0, color: isKycValid ? '#00FF9C' : '#FF4444' }}>
+                    {isKycValid
+                      ? '✓ Valid'
+                      : `✗ Need ${11 - form.kycID.length} more digit${11 - form.kycID.length !== 1 ? 's' : ''}`
+                    }
                   </p>
-                  <p style={{ fontSize: '10px', color: isKycValid ? '#00FF9C' : '#FF4444' }}>
+                  <p style={{ fontSize: '10px', margin: 0, color: isKycValid ? '#00FF9C' : '#FF4444' }}>
                     {form.kycID.length}/11
                   </p>
                 </div>
@@ -425,15 +477,30 @@ const Register = () => {
                   value={form.dob}
                   onChange={(e) => handleDobChange(e.target.value)}
                   required style={{ colorScheme: 'dark' }} />
-                {ageError && <p style={{ color: '#FF4444', fontSize: '10px', marginTop: '4px' }}>❌ {ageError}</p>}
-                {form.dob && !ageError && <p style={{ color: '#00FF9C', fontSize: '10px', marginTop: '4px' }}>✅ Age verified</p>}
+                {ageError && (
+                  <p style={{ color: '#FF4444', fontSize: '10px', marginTop: '4px' }}>
+                    ✗ {ageError}
+                  </p>
+                )}
+                {form.dob && !ageError && (
+                  <p style={{ color: '#00FF9C', fontSize: '10px', marginTop: '4px' }}>
+                    ✓ Age verified
+                  </p>
+                )}
               </div>
 
-              {error && <p style={{ color: '#FF4444', fontSize: '11px', marginBottom: '16px' }}>{'>'} ERROR :: {error}</p>}
+              {error && (
+                <p style={{ color: '#FF4444', fontSize: '11px', marginBottom: '16px' }}>
+                  {'>'} {error}
+                </p>
+              )}
 
               <button className="btn-primary" type="submit"
                 disabled={loading || !isKycValid || !!ageError || !form.dob}
-                style={{ marginBottom: '12px', opacity: (!isKycValid || !!ageError) ? 0.5 : 1 }}>
+                style={{
+                  marginBottom: '12px',
+                  opacity: (!isKycValid || !!ageError || !form.dob) ? 0.4 : 1
+                }}>
                 {loading ? '> CREATING_ACCOUNT...' : '> CREATE_ACCOUNT'}
               </button>
 
@@ -444,9 +511,10 @@ const Register = () => {
           )}
         </div>
 
-        <p style={{ textAlign: 'center', marginTop: '24px', color: '#444444', fontSize: '12px' }}>
+        <p style={{ textAlign: 'center', marginTop: '24px', color: '#444', fontSize: '12px' }}>
           HAVE_ACCOUNT?{' '}
-          <span style={{ color: '#F5A623', cursor: 'pointer' }} onClick={() => navigate('/login')}>
+          <span style={{ color: '#F5A623', cursor: 'pointer' }}
+            onClick={() => navigate('/login')}>
             {'>'} LOGIN
           </span>
         </p>
